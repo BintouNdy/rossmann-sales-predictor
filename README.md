@@ -1,107 +1,109 @@
-# Rossmann Sales Predictor
+# 📈 Prédiction des ventes dans les magasins Rossmann
 
-Ce projet vise à prédire les ventes quotidiennes des magasins Rossmann à l'aide de données historiques, en intégrant des facteurs comme les promotions, jours fériés, types de magasins et plus encore.
+Ce projet a pour objectif de prédire les ventes journalières des magasins Rossmann à l’aide d’un modèle **XGBoost** entraîné sur des données historiques enrichies (lags, moyennes mobiles, contexte promo…).
 
----
+## 🔧 Technologies utilisées
 
-## Objectif
-
-Aider Rossmann à :
-
-* Mieux anticiper les ventes.
-* Optimiser les niveaux de stocks.
-* Ajuster les campagnes promotionnelles.
-* Réduire les pertes liées à l'inventaire.
+- Python 3.10
+- XGBoost
+- Pandas, NumPy, Joblib
+- Streamlit *(interface utilisateur)* ou Flask *(API REST)*
+- Git + GitHub Actions *(CI/CD)*
+- Pytest *(tests unitaires)*
 
 ---
 
-## Structure du projet
+## 📁 Structure du projet
 
 ```
-rossmann-sales-predictor/
-│
-├── data/                   # Données brutes (train.csv, test.csv, store.csv)
-├── notebooks/              # Analyses exploratoires Jupyter
-├── outputs/                # Graphiques et prédictions
-├── src/                    # Code source modulaire
-│   ├── data_loader.py      # Chargement des CSV
-│   ├── cleaning.py         # Nettoyage des données
-│   ├── features.py         # Création de variables
-│   ├── visualization.py    # Graphiques exploratoires
-│   └── model.py            # (future) Entraînement ML
-├── main.py                 # Script d'orchestration principal
-├── requirements.txt        # Dépendances Python
-└── README.md
+├── app.py              # Point d'entrée (Streamlit ou Flask)
+├── ui.py               # Interface Streamlit (si utilisé)
+├── predict.py          # Fonction de prédiction
+├── xgboost_model.pkl   # Modèle IA sauvegardé
+├── requirements.txt    # Dépendances
+├── tests/
+│   └── test_predict.py # Test unitaire du modèle
+└── .github/
+    └── workflows/
+        └── ci.yml      # Pipeline CI avec GitHub Actions
 ```
 
 ---
 
-## Installation
+## 🚀 Démarrage rapide
 
-1. Clonez le repo :
-
-```bash
-git clone https://github.com/BintouNdy/rossmann-sales-predictor.git
-cd rossmann-sales-predictor
-```
-
-2. Créez un environnement virtuel :
-
-```bash
-python -m venv venv
-source venv/bin/activate  # Windows : venv\Scripts\activate
-```
-
-3. Installez les dépendances :
+### 🔹 Lancer l'app avec Streamlit
 
 ```bash
 pip install -r requirements.txt
+streamlit run app.py
 ```
 
----
-
-## Utilisation
-
-Exécutez le script principal :
+### 🔹 Lancer l’API Flask (alternative)
 
 ```bash
-python main.py
+pip install -r requirements.txt
+python app.py
 ```
 
-Ou ouvrez les notebooks dans `notebooks/` pour une exploration interactive.
+---
+
+## 🔍 Exemple de prédiction (API POST /predict)
+
+```json
+POST http://localhost:5000/predict
+Content-Type: application/json
+
+{
+  "DayOfWeek": 3,
+  "Promo": 1,
+  "CompetitionDistance": 500,
+  "Sales_lag_1": 6500,
+  ...
+}
+```
 
 ---
 
-## Modèle à venir
+## ✅ Tests unitaires
 
-Le modèle de prédiction utilisera :
+```bash
+pytest tests/
+```
 
-* RandomForestRegressor
-* Validation croisée
-* Optimisation via GridSearchCV
-
----
-
-## Visualisations incluses
-
-* Ventes par jour de la semaine
-* Impact des promotions
-* Corrélation entre variables
-* Analyse par type de magasin et assortiment
+Les tests valident que :
+- La fonction `predict_sales()` retourne un float
+- Le modèle est bien chargé et exploitable
 
 ---
 
-## TODO
+## ⚙️ CI/CD avec GitHub Actions
 
-* [x] Nettoyage des données
-* [x] Exploration visuelle
-* [x] Feature engineering
-* [ ] Entraînement du modèle
-* [ ] Soumission Kaggle
-* [ ] Dashboard interactif (facultatif)
+- À chaque `push` sur la branche `main`, le workflow :
+  - installe les dépendances
+  - exécute les tests
+  - bloque le déploiement si un test échoue ✅
 
 ---
 
-## Licence
+## 📊 Résultats
 
-Projet à but pédagogique dans le cadre de l'Épreuve 1 IA – Prédiction des ventes Rossmann.
+- Modèle final : **XGBoost**
+- RMSE : **153.81**
+- MAE : **79.05**
+- Données : +800 000 lignes, 25 features
+
+---
+
+## 🔒 Éthique et responsabilité
+
+- Aucun usage de données personnelles
+- Les biais potentiels liés à la saisonnalité ou à la localisation sont surveillés
+- À intégrer dans un cadre gouverné et supervisé
+
+---
+
+## 📬 Contact
+
+> Projet réalisé dans le cadre d’un cas d’usage IA – Rossmann  
+> Par : *[Bintou N'DIAYE / GitHub / LinkedIn]*
