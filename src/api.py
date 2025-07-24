@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import pandas as pd
-from src.features import FEATURES, load_model
+from src.features import load_model
 from src.predict import predict_sales
 
 # Initialisation
@@ -8,7 +8,6 @@ app = Flask(__name__)
 
 # Chargement du modèle
 model = load_model()
-
 
 @app.route('/')
 def home():
