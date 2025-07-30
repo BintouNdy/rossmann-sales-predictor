@@ -9,13 +9,13 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.model_selection import train_test_split
 
 
-def load_data(train_path='./../../data/train.csv', store_path='./../../data/store.csv'):
+def load_data(train_path='data/train.csv', store_path='data/store.csv'):
     train_data = pd.read_csv(train_path)
     store_data = pd.read_csv(store_path)
     return pd.merge(train_data, store_data, on='Store')
 
 def preprocess_data(df):
-    df = df[df['Open'] == 1]
+    df = df[df['Open'] == 1].copy()
     df['Date'] = pd.to_datetime(df['Date'])
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
@@ -75,9 +75,7 @@ def engineer_features(df):
         for month_abbr in interval_months:
             df.loc[(df['Promo2'] == 1) & (df[col] == 1) & (df['MonthStr'] == month_abbr), 'IsPromo2Active'] = 1
 
-
     df.drop(columns=['MonthStr', 'Open', 'Customers'], inplace=True)
-
 
     return df
 
@@ -95,43 +93,56 @@ def train_model(X_train, y_train):
     model.fit(X_train, y_train)
     return model
 
-#Entrainement avec DMatrix
-def train_model_dmatrix(X_train, y_train, X_test, y_test):
+def train_model_dmatrix(X_train, y_train, X_test, y_test, params=None):
     """
-    Entraîne un modèle XGBoost en utilisant l’API bas-niveau avec DMatrix.
-    Permet l’early stopping si un set de validation est fourni.
+    Entraîne un modèle XGBoost en utilisant l'API bas-niveau avec DMatrix.
+    Permet l'early stopping si un set de validation est fourni.
     """
     dtrain = xgb.DMatrix(X_train, label=y_train)    
     dtest  = xgb.DMatrix(X_test, label=y_test)
 
-    params = {
-        'objective': 'reg:squarederror',
-        'max_depth': 7,
-        'learning_rate': 0.068,
-        'subsample': 0.73,
-        'colsample_bytree': 0.98,
-        'gamma': 0.42,
-        'verbosity': 0
-    }
+    # Use provided params or default ones
+    if params is None:
+        params = {
+            'objective': 'reg:squarederror',
+            'max_depth': 7,
+            'learning_rate': 0.068,
+            'subsample': 0.73,
+            'colsample_bytree': 0.98,
+            'gamma': 0.42,
+            'verbosity': 0
+        }
 
     # 🔹 Liste de suivi pour l'évaluation
     watchlist = [(dtrain, "train"), (dtest, "eval")]
 
     # Entraînement du modèle
     print("🔄 Entraînement du modèle XGBoost avec DMatrix...")
-    model = xgb.train(params, dtrain, num_boost_round=1500, evals=watchlist, early_stopping_rounds=50)
+    model = xgb.train(params, dtrain, num_boost_round=6000, evals=watchlist, early_stopping_rounds=50)
     return model
 
 def evaluate_and_save(model, X_test, y_test, save_model=True, save_metrics=True, metrics_log_path='metrics_log.json'):
-    y_pred = model.predict(X_test)
+    # Convert X_test to DMatrix for prediction if using xgb.train model
+    if hasattr(model, 'predict') and str(type(model)).startswith("<class 'xgboost.core.Booster'>"):
+        dtest = xgb.DMatrix(X_test)
+        y_pred = model.predict(dtest)
+    else:
+        y_pred = model.predict(X_test)
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-    mae = mean_absolute_error(y_test, y_pred)    
+    mae = mean_absolute_error(y_test, y_pred)
 
     print(f"✅ Réentraînement terminé — RMSE: {rmse:.2f} | MAE: {mae:.2f}")
 
     if save_model:
-        joblib.dump(model, 'xgboost_model.pkl')
-        print("📦 Modèle sauvegardé sous 'xgboost_model.pkl'")
+        # Save model differently based on type
+        if hasattr(model, 'predict') and str(type(model)).startswith("<class 'xgboost.core.Booster'>"):
+            # For models trained with xgb.train (Booster objects)
+            model.save_model('xgboost_model.json')
+            print("📦 Modèle sauvegardé sous 'xgboost_model.json'")
+        else:
+            # For sklearn-style models
+            joblib.dump(model, 'xgboost_model.pkl')
+            print("📦 Modèle sauvegardé sous 'xgboost_model.pkl'")
 
     if save_metrics:
         record = {
@@ -169,5 +180,6 @@ def reentrainement_pipeline():
     model = train_model_dmatrix(X_train, y_train, X_test, y_test)
     evaluate_and_save(model, X_test, y_test)
 
-# 🔁 Lancer la pipeline
-reentrainement_pipeline()
+# 🔁 Lancer la pipeline seulement si le script est exécuté directement
+if __name__ == "__main__":
+    reentrainement_pipeline()
