@@ -9,23 +9,23 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from pipelines.mlflow_utils import train_and_log_model, setup_mlflow, compare_runs
 from features import get_features, load_data, preprocess_data, engineer_features
 
-def create_model(hyperparams=None):
-    """Create XGBoost model with given hyperparameters"""
+def create_xgb_params(hyperparams=None):
+    """Crée un dictionnaire de paramètres pour xgb.train()"""
     default_params = {
-        'n_estimators': 260,
+        'objective': 'reg:squarederror',
         'max_depth': 7,
-        'learning_rate': 0.068,
+        'eta': 0.068,
         'subsample': 0.73,
         'colsample_bytree': 0.98,
         'gamma': 0.42,
-        'random_state': 42,
+        'seed': 42,
         'verbosity': 0
     }
     
     if hyperparams:
         default_params.update(hyperparams)
     
-    return xgb.XGBRegressor(**default_params)
+    return default_params
 
 def run_training_pipeline(experiment_name="rossmann-sales-prediction", 
                          run_name=None, 
@@ -69,8 +69,8 @@ def run_training_pipeline(experiment_name="rossmann-sales-prediction",
     
     print(f"📈 Données divisées: {len(X_train)} train, {len(X_test)} test")
     
-    # Create model
-    model = create_model(hyperparams)
+    # Créer les paramètres du modèle XGBoost natif
+    params = create_xgb_params(hyperparams)
     
     # Prepare tags
     tags = {
@@ -82,17 +82,32 @@ def run_training_pipeline(experiment_name="rossmann-sales-prediction",
     if hyperparams:
         tags["hyperparams_tuned"] = "true"
     
+    # Convertir les données en DMatrix
+    dtrain = xgb.DMatrix(X_train, label=y_train)
+    dtest = xgb.DMatrix(X_test, label=y_test)
+    watchlist = [(dtrain, 'train'), (dtest, 'eval')]
+
+    # Entraîner le modèle avec xgb.train
+    booster = xgb.train(
+        params=params,
+        dtrain=dtrain,
+        num_boost_round=1000,
+        evals=watchlist,
+        early_stopping_rounds=50,
+        verbose_eval=False
+    )
+        
     # Train and log model
     trained_model = train_and_log_model(
-        model=model,
-        X_train=X_train,
-        y_train=y_train,
-        X_test=X_test,
-        y_test=y_test,
-        model_name="rossmann_xgboost",
-        experiment_name=experiment_name,
-        run_name=run_name,
-        tags=tags
+    model=booster,  # booster au lieu de sklearn model
+    X_train=X_train,
+    y_train=y_train,
+    X_test=X_test,
+    y_test=y_test,
+    model_name="rossmann_xgboost_booster",
+    experiment_name=experiment_name,
+    run_name=run_name,
+    tags=tags
     )
     
     print("🎉 Pipeline d'entraînement terminée avec succès!")

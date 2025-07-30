@@ -95,6 +95,33 @@ def train_model(X_train, y_train):
     model.fit(X_train, y_train)
     return model
 
+#Entrainement avec DMatrix
+def train_model_dmatrix(X_train, y_train, X_test, y_test):
+    """
+    Entraîne un modèle XGBoost en utilisant l’API bas-niveau avec DMatrix.
+    Permet l’early stopping si un set de validation est fourni.
+    """
+    dtrain = xgb.DMatrix(X_train, label=y_train)    
+    dtest  = xgb.DMatrix(X_test, label=y_test)
+
+    params = {
+        'objective': 'reg:squarederror',
+        'max_depth': 7,
+        'learning_rate': 0.068,
+        'subsample': 0.73,
+        'colsample_bytree': 0.98,
+        'gamma': 0.42,
+        'verbosity': 0
+    }
+
+    # 🔹 Liste de suivi pour l'évaluation
+    watchlist = [(dtrain, "train"), (dtest, "eval")]
+
+    # Entraînement du modèle
+    print("🔄 Entraînement du modèle XGBoost avec DMatrix...")
+    model = xgb.train(params, dtrain, num_boost_round=1500, evals=watchlist, early_stopping_rounds=50)
+    return model
+
 def evaluate_and_save(model, X_test, y_test, save_model=True, save_metrics=True, metrics_log_path='metrics_log.json'):
     y_pred = model.predict(X_test)
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
@@ -139,7 +166,7 @@ def reentrainement_pipeline():
     y = df['Sales']
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    model = train_model(X_train, y_train)
+    model = train_model_dmatrix(X_train, y_train, X_test, y_test)
     evaluate_and_save(model, X_test, y_test)
 
 # 🔁 Lancer la pipeline

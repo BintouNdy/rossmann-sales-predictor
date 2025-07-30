@@ -11,7 +11,7 @@ import xgboost as xgb
 # Add src to path
 sys.path.append('src')
 
-from pipelines.mlflow_utils import setup_mlflow, train_and_log_model
+from pipelines.mlflow_utils import train_and_log_model
 
 def test_mlflow_pipeline():
     """Test the MLflow pipeline with synthetic data"""

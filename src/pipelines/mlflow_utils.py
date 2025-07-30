@@ -3,6 +3,7 @@ import mlflow.xgboost
 from mlflow.models import infer_signature
 import pandas as pd
 import numpy as np
+import xgboost as xgb
 import os
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import datetime
@@ -31,21 +32,21 @@ def setup_mlflow(experiment_name="rossmann-sales-prediction", tracking_uri=None)
     return experiment_id
 
 
-def train_and_log_model(model, X_train, y_train, X_test, y_test, 
-                       model_name='xgboost_model', experiment_name="rossmann-sales-prediction",
-                       run_name=None, tags=None, save_model=True):
+def train_and_log_model(model, X_train, y_train, X_test, y_test,
+                        model_name, experiment_name, run_name=None, tags=None, save_model=True):
     """
-    Train a model and log everything to MLflow
+    Enregistre un modèle XGBoost Booster dans MLflow avec évaluation.
     
     Args:
-        model: ML model to train
-        X_train, y_train: Training data
-        X_test, y_test: Test data
-        model_name: Name for the logged model
-        experiment_name: MLflow experiment name
-        run_name: Optional run name
-        tags: Optional tags dictionary
-        save_model: Whether to save the model
+        model: Booster entraîné via xgb.train
+        X_train, y_train: Données d'entraînement (pandas ou numpy)
+        X_test, y_test: Données de test
+        model_name: Nom du modèle pour l'enregistrement
+        experiment_name: Nom de l'expérience MLflow
+        run_name: Nom facultatif de la run
+        tags: Dictionnaire de tags MLflow
+    Returns:
+        model: Booster XGBoost
     """
     # Setup experiment
     setup_mlflow(experiment_name)
@@ -55,22 +56,21 @@ def train_and_log_model(model, X_train, y_train, X_test, y_test,
         if tags:
             mlflow.set_tags(tags)
         
-        # Set default tags
+        # Tags par défaut
         mlflow.set_tag("model_type", "xgboost")
         mlflow.set_tag("dataset", "rossmann")
         mlflow.set_tag("training_date", datetime.datetime.now().isoformat())
-        
-        # Train the model
-        print("� Entraînement du modèle...")
-        model.fit(X_train, y_train)
-        
-        # Log model parameters
-        mlflow.log_params(model.get_params())
-        
-        # Make predictions
-        y_pred_train = model.predict(X_train)
-        y_pred_test = model.predict(X_test)
-        
+
+        print("🚀 Évaluation du modèle booster...")
+
+        # Convert to DMatrix
+        dtrain = xgb.DMatrix(X_train, label=y_train)
+        dtest = xgb.DMatrix(X_test, label=y_test)
+
+        # Prédictions
+        y_pred_train = model.predict(dtrain)
+        y_pred_test = model.predict(dtest)
+
         # Calculate metrics
         train_rmse = np.sqrt(mean_squared_error(y_train, y_pred_train))
         test_rmse = np.sqrt(mean_squared_error(y_test, y_pred_test))
@@ -78,8 +78,8 @@ def train_and_log_model(model, X_train, y_train, X_test, y_test,
         test_mae = mean_absolute_error(y_test, y_pred_test)
         train_r2 = r2_score(y_train, y_pred_train)
         test_r2 = r2_score(y_test, y_pred_test)
-        
-        # Log metrics
+
+        # Log métriques
         mlflow.log_metrics({
             "train_rmse": train_rmse,
             "test_rmse": test_rmse,
@@ -90,7 +90,7 @@ def train_and_log_model(model, X_train, y_train, X_test, y_test,
             "overfitting_score": abs(train_rmse - test_rmse) / train_rmse
         })
         
-        # Log dataset info
+        # Log infos données
         mlflow.log_params({
             "train_samples": len(X_train),
             "test_samples": len(X_test),
@@ -109,35 +109,35 @@ def train_and_log_model(model, X_train, y_train, X_test, y_test,
                 signature=signature,
                 input_example=X_train.iloc[:5] if hasattr(X_train, 'iloc') else X_train[:5]
             )
-            print(f"📦 Modèle '{model_name}' sauvegardé dans MLflow")
+            print(f"📦 Booster XGBoost loggé dans MLflow sous '{model_name}'")
         
-        # Create and log prediction results
+       # Résultats prédictions
         results_df = pd.DataFrame({
             'actual': y_test.values if hasattr(y_test, 'values') else y_test,
             'predicted': y_pred_test,
             'residual': (y_test.values if hasattr(y_test, 'values') else y_test) - y_pred_test
-        })
-        
-        # Save results as artifact
+        })        
         results_path = "predictions.csv"
         results_df.to_csv(results_path, index=False)
         mlflow.log_artifact(results_path)
         os.remove(results_path)  # Clean up local file
         
-        # Log feature importance if available
-        if hasattr(model, 'feature_importances_'):
-            feature_names = X_train.columns.tolist() if hasattr(X_train, 'columns') else [f'feature_{i}' for i in range(X_train.shape[1])]
+        # Importance des features
+        try:
+            importance_dict = model.get_score(importance_type='weight')
+            features = X_train.columns.tolist() if hasattr(X_train, 'columns') else [f"f{i}" for i in range(X_train.shape[1])]
             importance_df = pd.DataFrame({
-                'feature': feature_names,
-                'importance': model.feature_importances_
+                'feature': features,
+                'importance': [importance_dict.get(f"f{i}", 0) for i in range(len(features))]
             }).sort_values('importance', ascending=False)
-            
+
             importance_path = "feature_importance.csv"
             importance_df.to_csv(importance_path, index=False)
             mlflow.log_artifact(importance_path)
-            os.remove(importance_path)  # Clean up local file
-            
+            os.remove(importance_path)
             print("📈 Importance des features enregistrée")
+        except Exception as e:
+            print(f"⚠️ Impossible de logger l’importance des features : {e}")
         
         return model
 
